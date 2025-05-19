@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Title   : Show-Output-Exception-ErrorTrace-Info.ps1
     Author  : Jon Damvi
@@ -349,30 +349,39 @@ Function Parse-ErrorDetails {
         }
     }
     If($ErrorRecord) {
-        $ErrFields['Reason']      = Get-ObjectFieldValue -FieldName 'Reason'       -Object $ErrorRecord.CategoryInfo
-        $ErrFields['ErrDetails']  = Get-ObjectFieldValue -FieldName 'ErrorDetails' -Object $ErrorRecord
-        $ErrFields['ErrLine']     = ([string]$(Get-ObjectFieldValue -FieldName 'Line'  -Object $ErrorRecord.InvocationInfo)).TrimEnd("`r","`n"," ")
-        $ErrFields['LineNum']     = Get-ObjectFieldValue -FieldName 'ScriptLineNumber' -Object $ErrorRecord.InvocationInfo
-        $ErrFields['Position']    = Get-ObjectFieldValue -FieldName 'OffsetInLine'     -Object $ErrorRecord.InvocationInfo
-        $FuncName = Get-ObjectFieldValue -FieldName 'MyCommand'      -Object $ErrorRecord.InvocationInfo
-        $CallName = Get-ObjectFieldValue -FieldName 'InvocationName' -Object $ErrorRecord.InvocationInfo
-        $ErrFields['FuncName']    = $FuncName
-        $ErrFields['CallName']    = $CallName
-        $PosMsg = Get-ObjectFieldValue -FieldName 'PositionMessage' -Object $ErrorRecord.InvocationInfo
-        $PosMsg = Format-ErrorPositionMessage $PosMsg
-        $ErrFields['ErrPosition'] = $PosMsg
-        $StackTrace  = Get-ObjectFieldValue -FieldName 'ScriptStackTrace' -Object $ErrorRecord
-        $ErrorTraces = Get-ErrorStackTrace  $StackTrace
-        $ErrFields['ErrTraces']   = $ErrorTraces
-        If($null -ne $ErrorTraces -And $ErrorTraces.Count -gt 0) {
-            If(-Not $FuncName) { $ErrFields['FuncName'] = $ErrorTraces[-1].StackFuncName }
+        $CategoryInfo = Get-ObjectFieldValue -FieldName 'InvocationInfo' -Object $ErrorRecord
+        If($CategoryInfo) {
+            $ErrFields['Reason']      = Get-ObjectFieldValue -FieldName 'Reason'       -Object $CategoryInfo
+            $ErrFields['TargetName']  = Get-ObjectFieldValue -FieldName 'TargetName' -Object $CategoryInfo
+            $ErrFields['TargetType']  = Get-ObjectFieldValue -FieldName 'TargetType' -Object $CategoryInfo
         }
-        $ErrorTraceMsg = $(Foreach ($ErrorTrace in $ErrorTraces) {
-            "$($ErrorTrace['StackFuncName']){... at Line:$($ErrorTrace.LineNum) "
-        }) -join "-> "
-        $ErrFields['ErrTraceMsg'] = $ErrorTraceMsg
-        $ErrFields['TargetName']  = Get-ObjectFieldValue -FieldName 'TargetName' -Object $ErrorRecord.CategoryInfo
-        $ErrFields['TargetType']  = Get-ObjectFieldValue -FieldName 'TargetType' -Object $ErrorRecord.CategoryInfo
+        $ErrFields['ErrDetails']  = Get-ObjectFieldValue -FieldName 'ErrorDetails' -Object $ErrorRecord
+        $InvocationInfo = Get-ObjectFieldValue -FieldName 'InvocationInfo' -Object $ErrorRecord
+        If($InvocationInfo) {
+            $ErrFields['ErrLine']     = ([string]$(Get-ObjectFieldValue -FieldName 'Line'  -Object $InvocationInfo)).TrimEnd("`r","`n"," ")
+            $ErrFields['LineNum']     = Get-ObjectFieldValue -FieldName 'ScriptLineNumber' -Object $InvocationInfo
+            $ErrFields['Position']    = Get-ObjectFieldValue -FieldName 'OffsetInLine'     -Object $InvocationInfo
+            $FuncName = Get-ObjectFieldValue -FieldName 'MyCommand'      -Object $InvocationInfo
+            $CallName = Get-ObjectFieldValue -FieldName 'InvocationName' -Object $InvocationInfo
+            $ErrFields['FuncName']    = $FuncName
+            $ErrFields['CallName']    = $CallName
+            $PosMsg = Get-ObjectFieldValue -FieldName 'PositionMessage' -Object $InvocationInfo
+            $PosMsg = Format-ErrorPositionMessage $PosMsg
+            $ErrFields['ErrPosition'] = $PosMsg
+        }
+        $StackTrace  = Get-ObjectFieldValue -FieldName 'ScriptStackTrace' -Object $ErrorRecord
+        If($StackTrace) {
+            $ErrorTraces = Get-ErrorStackTrace  $StackTrace
+            $ErrFields['ErrTraces']   = $ErrorTraces
+            If($null -ne $ErrorTraces -And $ErrorTraces.Count -gt 0) {
+                If(-Not $FuncName) { $ErrFields['FuncName'] = $ErrorTraces[-1].StackFuncName }
+            }
+            $ErrorTraceMsg = $(Foreach ($ErrorTrace in $ErrorTraces) {
+                "$($ErrorTrace['StackFuncName']){... at Line:$($ErrorTrace.LineNum) "
+            }) -join "-> "
+            $ErrFields['ErrTraceMsg'] = $ErrorTraceMsg
+        }
+
     }
     return $ErrFields
 }
@@ -775,6 +784,18 @@ Function Append-ThrownErrorData {
 
 # EXAMPLE Usage:
 
+function Get-ProcessOutput {
+    param($pid)
+    $proc = Get-Process -Id $pid -ErrorAction Stop
+    try {
+        $reader = $proc.StandardOutput
+        $reader.ReadToEnd()
+    } catch {
+        throw $_
+    }
+}
+
+
 Function Some-Function {
     [CmdletBinding()]
     Param(
@@ -795,19 +816,84 @@ Function Some-Function {
         )
         $SomeParameter = 11
         $SomeOtherParam2 = "SomeValue2"
-        Try {
-            $divisor = 0
-            [ref]$out = $null
-            [Math]::DivRem(1,$divisor,$out)
 
-        } Catch {
-            throw $(Append-ThrownErrorData $_ -FunctionName $MyInvocation.MyCommand.Name)
+        function Process-Item {
+            param([ValidateSet('1','0')]$item)
+            process {
+
+                    Get-WmiObject -Namespace "root\invalidnamespace" -Class Win32_OperatingSystem -ErrorAction Stop
+
+                Try {
+
+                    # 1:
+                    <#
+                    $divisor = 0
+                    [ref]$out = $null
+                    [Math]::DivRem(1,$divisor,$out)
+                    #>
+
+                    # 2:
+                    <#
+                    $excel = New-Object -ComObject Excel.Application
+                    $excel.Quit()
+                    #>
+
+                    # 3:
+                    <#
+                    $ex = [System.UnauthorizedAccessException]::new("Access denied to resource")
+                    $errorRecord = [System.Management.Automation.ErrorRecord]::new(
+                        $ex,
+                        "AccessDenied",
+                        [System.Management.Automation.ErrorCategory]::PermissionDenied,
+                        $null
+                    )
+                    $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new("Check permissions and try again.")
+                    throw $errorRecord
+                    #>
+
+                    # 4:
+                    #Stop-Process -Id 999999 -ErrorAction Stop
+
+                    # 5:
+                    #Get-ProcessOutput -pid 0
+
+                    # 6:
+                    #if ("test" -match "[unclosed") { }
+
+                    # 7:
+                    #$nullObject = $null
+                    #$nullObject.ToString()
+
+                    # To-Do: Fix omit duplicating innner error
+                    # 8:
+                    #[int]"abc"
+
+                    # 9:
+                    1,0,3 | ForEach-Object { Process-Item $_ }
+                    
+
+                } Catch {
+            
+                    throw $(Append-ThrownErrorData $_ -FunctionName $MyInvocation.MyCommand.Name)
+                }
+
+            }
         }
+
+        Process-Item
+
     }
     Try {
         Nested-Function -TestBool $true -TestSwitch -TestString "NEw String Value!" -testInt 52 -ErrorAction Stop
     } Catch {
-        Write-Host $(Get-DebugErrorMessage -ErrorRecord $_) -ForegroundColor Green
+        $global:testErr12 = $_
+        Try {
+            Write-Host $(Get-DebugErrorMessage -ErrorRecord $_) -ForegroundColor Green
+        } Catch {
+
+            $global:testErr11 = $_
+        }
+        
     }
 }
 
