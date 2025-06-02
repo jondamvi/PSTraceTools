@@ -1,12 +1,14 @@
 <#
 .SYNOPSIS
-    Title   : Show-Output-Exception-ErrorTrace-Info.ps1
+    Title   : PSV.DebugTraceTools.ps1
     Author  : Jon Damvi
-    Version : 1.0.0
-    Date    : 19.05.2025
-    License : MIT
+    Version : 1.0.1
+    Date    : 02.06.2025
+    License : MIT (LICENSE)
 
-   Release Notes: v1.0.0 (19.05.2025) - initial release.
+   Release Notes:
+        v1.0.0 (19.05.2025) - initial release (by Jon Damvi).
+        v1.0.1 (02.06.2025) - synopsis function documentation (by Jon Damvi).
 
 .DESCRIPTION
     Shows detailed Exception Error Trace information
@@ -19,7 +21,7 @@
 
 #>
 
-class ActualError {
+Class ActualError {
     [int]$HResult
     [string]$HResultHex
     [string]$Facility
@@ -29,10 +31,45 @@ class ActualError {
     [string]$Message
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Get-ActualError
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	Translates decimal exception HResult error code to actual error information.
+
+.PARAMETER hresult
+	(Optional) Specifies HResult error code to decode.
+	Expected type: [int]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	ActualError - Class-object containing detailed error information.
+
+.EXAMPLE
+	[ActualError]$ErrorInfo = Get-ActualError -hresult -2146233087
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 function Get-ActualError {
-    Param([int]$hresult)
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [int]$HResult
+    )
     # Define a class to hold the decoded error info
-    class ActualError {
+    Class ActualError {
         [int]$HResult
         [string]$HResultHex
         [string]$Facility
@@ -41,52 +78,114 @@ function Get-ActualError {
         [bool]$IsFailure
         [string]$Message
     }
-    $actualError = [ActualError]::new()
-    $actualError.HResult = $hresult
-    $actualError.HResultHex = "0x" + $hresult.ToString("X8")
+    $ActualError = [ActualError]::new()
+    $ActualError.HResult = $HResult
+    $ActualError.HResultHex = "0x" + $HResult.ToString("X8")
     # Extract error code (lowest 16 bits)
-    $actualError.ErrorCode = $hresult -band 0xFFFF
+    $ActualError.ErrorCode = $HResult -band 0xFFFF
     # Extract facility code (bits 16-30)
-    $actualError.FacilityCode = ($hresult -shr 16) -band 0x1FFF
+    $ActualError.FacilityCode = ($HResult -shr 16) -band 0x1FFF
     # Check if severity bit (bit 31) is set (failure)
-    $actualError.IsFailure = ($hresult -band 0x80000000) -ne 0
+    $ActualError.IsFailure = ($HResult -band 0x80000000) -ne 0
     # Get the Win32 error message corresponding to the HRESULT
     Try {
-        $actualError.Message = (New-Object System.ComponentModel.Win32Exception($hresult)).Message
+        $ActualError.Message = (New-Object System.ComponentModel.Win32Exception($HResult)).Message
     } Catch {
-        $actualError.Message = "Unknown error message"
+        $ActualError.Message = "Unknown error message"
     }
     # Map facility codes to names based on standard HRESULT facility codes
-    switch ($actualError.FacilityCode) {
-        0   { $actualError.Facility = 'FACILITY_NULL' }
-        1   { $actualError.Facility = 'FACILITY_RPC' }
-        2   { $actualError.Facility = 'FACILITY_DISPATCH' }
-        3   { $actualError.Facility = 'FACILITY_STORAGE' }
-        4   { $actualError.Facility = 'FACILITY_ITF' }
-        5   { $actualError.Facility = 'FACILITY_WIN32' }
-        6   { $actualError.Facility = 'FACILITY_WINDOWS' }
-        7   { $actualError.Facility = 'FACILITY_SSPI' }
-        default { $actualError.Facility = 'UNKNOWN' }
+    switch ($ActualError.FacilityCode) {
+        0   { $ActualError.Facility = 'FACILITY_NULL' }
+        1   { $ActualError.Facility = 'FACILITY_RPC' }
+        2   { $ActualError.Facility = 'FACILITY_DISPATCH' }
+        3   { $ActualError.Facility = 'FACILITY_STORAGE' }
+        4   { $ActualError.Facility = 'FACILITY_ITF' }
+        5   { $ActualError.Facility = 'FACILITY_WIN32' }
+        6   { $ActualError.Facility = 'FACILITY_WINDOWS' }
+        7   { $ActualError.Facility = 'FACILITY_SSPI' }
+        default { $ActualError.Facility = 'UNKNOWN' }
     }
-    return $actualError
+    return $ActualError
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Get-ActiveScopeCount
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	Gets count of active powershell scopes excluding console and global session scope.
+
+.INPUTS
+	None
+
+.OUTPUTS
+	System.Byte - count of active powershell scopes.
+
+.EXAMPLE
+    Get-ActiveScopeCount 
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Get-ActiveScopeCount {
-    [byte]$count = 0
-    while ($true) {
+    [CmdletBinding()]
+    Param()
+    [byte]$Count = 0
+    While ($true) {
         Try {
             # Try to get reserved variable at scope $count. This function call limits processing overhead to minimum as possible.
-            Get-Variable -Name 'PID' -ValueOnly -Scope $count -ErrorAction Stop -WarningAction Ignore -InformationAction Ignore -Verbose:$false | Out-Null
-            $count++
+            Get-Variable -Name 'PID' -ValueOnly -Scope $Count -ErrorAction Stop -WarningAction SilentlyContinue -InformationAction SilentlyContinue -Verbose:$false | Out-Null
+            $Count++
         }
         Catch {
             break
         }
     }
-    return [byte]($count-2)
+    return [byte]($Count-2)
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Get-LocalSetVariables
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER Scope
+	(Mandatory) Specifies ...
+	Expected type  : [Byte]
+	Allowed Values : [0;255]
+	Default Value  : 0
+
+.INPUTS
+	None
+
+.OUTPUTS
+	System.Management.Automation.PSVariable[]
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Get-LocalSetVariables -Scope $Scope
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Get-LocalSetVariables {
+    [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [ValidateRange(0,255)]
@@ -94,12 +193,12 @@ Function Get-LocalSetVariables {
     )
     # Scope = 0 - value is for the user
     # ActualScope is one level back from 0
-    $ActualScope = $Scope + 1
-    If($ActualScope -ge $(Get-ActiveScopeCount)) {
+    [byte]$ActualScope = $Scope + 1
+    If($ActualScope -ge $(Get-ActiveScopeCount -ErrorAction Stop)) {
         return
     }
     # Known automatic variables to exclude
-    $automaticVars = @(
+    [string[]]$FilterVars = @(
         'null', 'PSBoundParameters', 'PSCommandPath', 'PSCulture', 'PSDefaultParameterValues',
         'PSEmailServer', 'PSHome', 'PSItem', 'PSModuleAutoLoadingPreference', 'PSScriptRoot', 'PSSessionApplicationName',
         'PSSessionConfigurationName', 'PSSessionOption', 'PSUICulture', 'PSVersionTable', 'StackTrace', 'This',
@@ -110,24 +209,77 @@ Function Get-LocalSetVariables {
         'PSModulePath', 'PSProvider', 'PSCommandPath', 'PSCulture', 'PSHOME', 'PSUICulture', 'PSCmdlet', '_'
     )
     # Flags for Constant and AllScope
-    $excludeFlags = 2 -bor 8
+    [int]$ExcludeFlags = [int](2 -bor 8)
     # Get local variables excluding Constant and AllScope
-    $localVars = @(Get-Variable -Scope $ActualScope | ? { ([int]$_.Options -band $excludeFlags) -eq 0 })
+    [System.Management.Automation.PSVariable[]]$LocalVars = [System.Management.Automation.PSVariable[]]@(
+        Get-Variable -Scope $ActualScope | ? { ([int]$_.Options -band $ExcludeFlags) -eq 0 }
+    )
     # Exclude known automatic variables by name
-    $filteredVars = $localVars.GetEnumerator() | ? { $automaticVars -notcontains $_.Name }
-    $result = $filteredVars.GetEnumerator() | ? {
-        $parentVar = Get-Variable -Name $_.Name -Scope Script -ErrorAction SilentlyContinue
-        If ($null -eq $parentVar) {
-            $true
+    [System.Management.Automation.PSVariable[]]$FilteredVars = [System.Management.Automation.PSVariable[]]@(
+        $LocalVars.GetEnumerator() | ? { $FilterVars -notcontains $_.Name }
+    )
+    [System.Management.Automation.PSVariable[]]$result = [System.Management.Automation.PSVariable[]]@(
+        $FilteredVars.GetEnumerator() | ? {
+            [System.Management.Automation.PSVariable]$ParentVar = [System.Management.Automation.PSVariable](
+                Get-Variable -Name $_.Name -Scope Script -ErrorAction SilentlyContinue
+            )
+            If ($null -eq $ParentVar) {
+                $true
+            }
+            Else {
+                $_.Value -ne $ParentVar.Value
+            }
         }
-        Else {
-            $_.Value -ne $parentVar.Value
-        }
-    }
-    return $result
+    )
+    return [System.Management.Automation.PSVariable[]]$result
 }
 
-Function Format-DebugInfo {
+<#
+.SYNOPSIS
+	Title   : Function Format-TraceInfo
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER Message
+	(Mandatory) Specifies ...
+	Expected type: [String]
+
+.PARAMETER EntryPoint
+	(Mandatory) Specifies ...
+	Expected type: [SwitchParameter]Aliases: Entry
+
+.PARAMETER TransitivePoint
+	(Mandatory) Specifies ...
+	Expected type: [SwitchParameter]Aliases: Transitive
+
+.PARAMETER Scope
+	(Optional) Specifies ...
+	Expected type: [Byte]
+	Allowed Values: [0;255]
+	Default Value: 0
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$TraceMessage - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Format-TraceInfo -Message $Message -EntryPoint $EntryPoint -TransitivePoint $TransitivePoint -Scope $Scope
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
+Function Format-TraceInfo {
     [CmdletBinding(DefaultParameterSetName = 'TransitivePoint')]
     Param(
         [Parameter(Mandatory)]
@@ -146,27 +298,27 @@ Function Format-DebugInfo {
         [byte]$Scope = 0
     )
     Try {
-        $ActualScope = $Scope + 1
-        If($ActualScope -ge $(Get-ActiveScopeCount)) {
+        [byte]$ActualScope = $Scope + 1
+        If($ActualScope -ge $(Get-ActiveScopeCount -ErrorAction Stop)) {
             return
         }
         # Function body as before, using $PSCmdlet.ParameterSetName to branch logic
-        $callStack = @(Get-PSCallStack)
+        $CallStack = @(Get-PSCallStack -ErrorAction Stop)
         $CallStackScope = $ActualScope
-        If($callStack.Count -le $CallStackScope) {
+        If($CallStack.Count -le $CallStackScope) {
             return
         }
-        $currentFunction = $callStack[$CallStackScope].FunctionName
-        $invocationName  = $callStack[$CallStackScope].InvocationInfo.InvocationName
-        $aliasUsed = ($invocationName -And $invocationName -ne $currentFunction)
-        $EntryPointName = "${currentFunction}"
-        If ($aliasUsed) {
-            $EntryPointName = "#$invocationName->[${currentFunction}]:"
+        $CurrentFunction = $CallStack[$CallStackScope].FunctionName
+        $InvocationName  = $CallStack[$CallStackScope].InvocationInfo.InvocationName
+        $AliasUsed = ($InvocationName -And $InvocationName -ne $CurrentFunction)
+        $EntryPointName = "${CurrentFunction}"
+        If ($AliasUsed) {
+            $EntryPointName = "#$InvocationName->${CurrentFunction}"
         }
         # Build call stack string only if in Params set
-        $callStackStr = ''
+        $CallStackStr = ''
         If ($PSCmdlet.ParameterSetName -eq 'EntryPoint') {
-            $filteredStack = @($callStack[$CallStackScope..($callStack.Count-1)] | ForEach-Object {
+            $FilteredStack = @($CallStack[$CallStackScope..($CallStack.Count-1)] | % {
                 If ($_.FunctionName -eq "<ScriptBlock>") { "<Script>" }
                 Else {
                     If ($_.InvocationInfo.InvocationName -And $_.InvocationInfo.InvocationName -ne $_.FunctionName -And $_.FunctionName -notmatch '.+<(Begin|Process|End)>') {
@@ -177,19 +329,23 @@ Function Format-DebugInfo {
                     }
                 }
             })
-            [Array]::Reverse($filteredStack)
-            $callStackStr = $filteredStack -join ':'
+            [Array]::Reverse($FilteredStack)
+            $CallStackStr = $FilteredStack -join ':'
         }
         # Format items (Params or Locals)
-        $Params = $callStack[$CallStackScope].InvocationInfo.BoundParameters
-        switch ($PSCmdlet.ParameterSetName) {
+        $Params = $CallStack[$CallStackScope].InvocationInfo.BoundParameters
+        Switch ($PSCmdlet.ParameterSetName) {
             'EntryPoint' {
                 $items = $Params
             }
             'TransitivePoint' {
                 $items = @{}
                 $VariableScope  = $ActualScope
-                $LocalVariables = @(Get-LocalSetVariables -Scope ($VariableScope)) | ? { (-Not $Params.ContainsKey($_.Name) -OR $Params[$_.Name] -ne $_.Value) }
+                $LocalVariables = @(
+                    Get-LocalSetVariables -Scope ($VariableScope) -ErrorAction Stop
+                ) | ? { 
+                    (-Not $Params.ContainsKey($_.Name) -OR $Params[$_.Name] -ne $_.Value)
+                }
                 Foreach ($var in $LocalVariables) {
                     $items[$var.Name] = $var.Value
                 }
@@ -199,73 +355,145 @@ Function Format-DebugInfo {
             }
         }
         # Format items using your Format-Value helper
-        $itemStrings = @(Foreach ($key in $items.Keys | Sort) {
+        $ItemStrings = @(Foreach ($key in $items.Keys | Sort) {
             $Value = $items[$key]
-            "${key}=" + (Format-Value $Value)
+            "${key} = " + (Format-Value $Value -ErrorAction Stop)
         })
-        $itemsStr = If ($itemStrings.Count) { $itemStrings -join ', ' } Else { '' }
+        $ItemsStr = If ($ItemStrings.Count) { $ItemStrings -join ", `n " } Else { '' }
         # Determine line number if call stack available
-        $lineNum = $callStack[$CallStackScope].ScriptLineNumber
+        $LineNum = $CallStack[$CallStackScope].ScriptLineNumber
         If ($PSCmdlet.ParameterSetName -eq 'EntryPoint') {
-            $itemsStr = "($itemsStr)"
-        }
-        $debugMsg = ''
-        If ($PSCmdlet.ParameterSetName -eq 'EntryPoint') {
-            $debugMsg = "[${EntryPointName}]: '${Message}' (Line:${lineNum}): ${callStackStr}${itemsStr}"
+            $ItemsStr = "(`n $ItemsStr`n)"
         } Else {
-            $debugMsg = "[${EntryPointName}]: '${Message}' (Line:${lineNum}): {${callStackStr}${itemsStr}}"
+            $ItemsStr = "`n $ItemsStr`n"
         }
-        return $debugMsg
+        $TraceMessage = ''
+        If ($PSCmdlet.ParameterSetName -eq 'EntryPoint') {
+            $TraceMessage = "[${EntryPointName}]: '${Message}' (Line:${LineNum}): ${CallStackStr}${ItemsStr}"
+        } Else {
+            $TraceMessage = "[${EntryPointName}]: '${Message}' (Line:${LineNum}): `n{${CallStackStr}${ItemsStr}}"
+        }
+        return $TraceMessage
     }
     Catch {
-        Write-ErrorLog $_
+        Throw $_
     }
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Format-Value
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER Value
+	(Optional) Specifies ...
+	Expected type: [Object]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	[string] - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Format-Value -Value $Value
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Format-Value {
-    Param([object]$Value)
-    $MaxLength = 256
+    [CmdletBinding()]
+    Param(
+        [Object]$Value
+    )
+    $MaxLength = 255
+    [string]$ReturnStr = ''
     If ($null -eq $Value) {
-        return '`$null'
+        $ReturnStr = '`$null'
     }
-    elseIf ($Value -is [switch]) {
-        return $Value.ToString().ToLower()
+    ElseIf (($Value -is [switch]) -OR ($Value -is [bool])) {
+        $ReturnStr = $Value.ToString().ToLower()
     }
-    elseIf ($Value -is [bool]) {
-        return $Value.ToString().ToLower()
-    }
-    elseIf ($Value -is [string] -OR $Value -is [ScriptBlock]) {
-        If($Value -is [scriptblock]) { $Value = $Value.ToString() }
-        $str = $Value.TrimStart(" ", "`n", "`r")
+    ElseIf ($Value -is [string] -OR $Value -is [ScriptBlock]) {
+        If ($Value -is [ScriptBlock]) { $Value = $Value.ToString() }
+        $Str = $Value.TrimStart(" ", "`n", "`r")
         # Get up to first newline or $MaxLength, whichever is shorter
-        $newlineIdx = $str.IndexOf("`n")
-        If ($newlineIdx -ge 0 -And $newlineIdx -lt $MaxLength) {
-            $preview = $str.Substring(0, $newlineIdx).TrimEnd(" ", "`r", "`n")
-            return '"' + $preview + ' \\~..."'
+        $NewlineIdx = $Str.IndexOf("`n")
+        If ($NewlineIdx -ge 0 -And $NewlineIdx -lt $MaxLength) {
+            $Preview = $Str.Substring(0, $NewlineIdx).TrimEnd(" ", "`r", "`n")
+            $ReturnStr = '"' + $Preview + ' \\~..."'
         } ElseIf ($str.Length -gt $MaxLength) {
-            $preview = $str.Substring(0, $MaxLength).TrimEnd(" ", "`r", "`n")
-            return '"' + $preview + ' ~..."'
+            $Preview = $Str.Substring(0, $MaxLength).TrimEnd(" ", "`r", "`n")
+            $ReturnStr = '"' + $Preview + ' ~..."'
         } Else {
-            return '"' + $str + '"'
+            $ReturnStr = '"' + $Str + '"'
         }
     }
-    elseIf ($Value.GetType().IsPrimitive) {
+    ElseIf ($Value.GetType().IsPrimitive) {
         return $Value.ToString()
     }
-    elseIf ($Value -is [System.Array]) {
-        $typeName = $Value.GetType().GetElementType().Name
-        $count = $Value.Count
-        return "[$typeName[$count]]`$Obj"
-    }
-    elseIf ($Value.ToString() -ne $Value.GetType().FullName) {
-        return "'" + $Value.ToString() + "'"
+    ElseIf ($Value -is [System.Array]) {
+        $TypeName = $Value.GetType().GetElementType().Name
+        $Count = $Value.Count
+        $ReturnStr = "[$TypeName[$Count]]`$Obj"
     }
     Else {
-        $typeName = $Value.GetType().Name
-        return "[$typeName]`$Obj"
+        Try {
+            $ValueString = $Value.ToString()
+            $ValueTypeFullName = $Value.GetType().FullName
+            If ($ValueString -ne $ValueTypeFullName) {
+                $ReturnStr = "'" + $ValueString + "'"
+            }
+        } Catch {
+
+        }
+        $ValueTypeName = $Value.GetType().Name
+        $ReturnStr = "[$ValueTypeName]`$Obj"
     }
+    return $ReturnStr
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Get-ErrorStackTrace
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorStackTrace
+	(Mandatory) Specifies ...
+	Expected type: [String]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	None
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Get-ErrorStackTrace -ErrorStackTrace $ErrorStackTrace
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Get-ErrorStackTrace {
     [CmdletBinding()]
     Param(
@@ -273,18 +501,18 @@ Function Get-ErrorStackTrace {
         [ValidateNotNullOrEmpty()]
         [string]$ErrorStackTrace
     )
-    $ErrorTraces = @()
+    [Hashtable[]]$ErrorTraces = @()
     $StackTraceMatches = Select-String '[A-Z]+ ([^,]+), ([A-Z]:\\[^:]+|[^:]+): [A-Z]+ ([\d]+)' -Input $StackTrace -AllMatches
     If($StackTraceMatches -And $StackTraceMatches.Matches) {
         Foreach($StackTraceMatch in $StackTraceMatches.Matches) {
             $ErrorTrace = @{}
             $StackFuncName = $StackTraceMatch.Groups[1].Value 
-            $ErrorTrace['StackFuncName'] = $(If($StackFuncName -ne '<ScriptBlock>') { $StackFuncName } Else { '<Script>' })
+            $ErrorTrace['StackFuncName'] = $(If ($StackFuncName -ne '<ScriptBlock>') { $StackFuncName } Else { '<Script>' })
             $ScriptPath = $StackTraceMatch.Groups[2].Value
             $ScriptPathShort = ''
             $ScriptName = ''
-            If(Test-Path $ScriptPath -IsValid) {
-                $ScriptName = Split-Path $ScriptPath -Leaf
+            If (Test-Path $ScriptPath -IsValid) {
+                $ScriptName = Split-Path $ScriptPath -Leaf -ErrorAction Stop
                 $ScriptPathShort = "...\$ScriptName"
             }
             $ErrorTrace['ScriptPath'] = $ScriptPath
@@ -294,9 +522,41 @@ Function Get-ErrorStackTrace {
             $ErrorTraces += $ErrorTrace
         }
     }
-    return [Array]::Reverse($ErrorTraces)
+    [Hashtable[]]::Reverse($ErrorTraces)
+    return $ErrorTraces
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Format-ErrorPositionMessage
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER PositionMessage
+	(Mandatory) Specifies ...
+	Expected type: [String]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$result - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Format-ErrorPositionMessage -PositionMessage $PositionMessage
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Format-ErrorPositionMessage {
     [CmdletBinding()]
     Param(
@@ -304,22 +564,58 @@ Function Format-ErrorPositionMessage {
         [ValidateNotNullOrEmpty()]
         [string]$PositionMessage
     )
-    $result = ''
-    If($PositionMessage -match '.+\.ps1:.+\n') {
+    [string]$result = ''
+    If ($PositionMessage -match '.+\.ps1:.+\n') {
         $PosLines = $PositionMessage.Split("`n")
-        If($PosLines[0] -match '^([^ ]+ )([A-Z]:\\[^:]+|[^:]+)(:.+)$') {
+        If ($PosLines[0] -match '^([^ ]+ )([A-Z]:\\[^:]+|[^:]+)(:.+)$') {
             $PosPrefix = $Matches[1]
             $PosPath   = $Matches[2]
             $PosEnding = $Matches[3]
             If(Test-Path $PosPath -IsValid) {
-                $PosLines[0] = "$PosPrefix ...\$(Split-Path $PosPath -Leaf)$PosEnding"
+                $PosLines[0] = "$PosPrefix ...\$(Split-Path $PosPath -Leaf -ErrorAction Stop)$PosEnding"
                 $result = $PosLines -join "`n"
             }
         }
     }
-    return $result
+    return [string]$result
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Parse-ErrorDetails
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorRecord
+	(Optional) Specifies ...
+	Expected type: [ErrorRecord]
+
+.PARAMETER Exception
+	(Mandatory) Specifies ...
+	Expected type: [Object]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$ErrFields - returned when ...
+	$null      - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Parse-ErrorDetails -ErrorRecord $ErrorRecord -Exception $Exception
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Parse-ErrorDetails {
     [CmdletBinding()]
     Param(
@@ -330,48 +626,50 @@ Function Parse-ErrorDetails {
         [ValidateNotNullOrEmpty()]
         [Object]$Exception
     )
-    If($null -eq $ErrorRecord -And $null -eq $Exception) { return $null }
-    $ErrFields = @{}
+    If ($null -eq $ErrorRecord -And $null -eq $Exception) { return $null }
+    [Hashtable]$ErrFields = @{}
     If($Exception) {
-        $ErrFields['Message']  = Get-ObjectFieldValue -FieldName 'Message'               -Object $Exception
-        $ErrFields['Category'] = Get-ObjectFieldValue -FieldName 'Category'              -Object $Exception
-        $ErrFields['ErrorId']  = Get-ObjectFieldValue -FieldName 'FullyQualifiedErrorId' -Object $Exception
-        $ErrCodeD = Get-ObjectFieldValue -FieldName 'HResult' -Object $Exception
+        $ErrFields['Message']  = Get-ObjectFieldValue -FieldName 'Message'               -Object $Exception -ErrorAction Stop
+
+
+        $ErrCodeD = Get-ObjectFieldValue -FieldName 'HResult' -Object $Exception -ErrorAction Stop
         $ErrFields['ErrCodeD']    = $ErrCodeD
         $ErrFields['ErrCodeH']    = $(If ($ErrCodeD) { "0x{0:X8}" -f $ErrCodeD })
-        $ErrFields['Win32ErrMsg'] = $(If ($ErrCodeD) { $Msg = $(Get-ActualError $ErrCodeD).Message; $(If ($Msg -notmatch "Unknown Error \(") { $Msg }) })
-        $ErrData = Get-ObjectFieldValue -FieldName 'Data' -Object $Exception
+        $ErrFields['Win32ErrMsg'] = $(If ($ErrCodeD) { $Msg = $(Get-ActualError $ErrCodeD -ErrorAction Stop).Message; $(If ($Msg -notmatch "Unknown Error \(") { $Msg }) })
+        $ErrData = Get-ObjectFieldValue -FieldName 'Data' -Object $Exception -ErrorAction Stop
         $ErrFields['ThrowManual'] = $false
         If($ErrData) {
-            $ErrFields['ThrowManual'] = Get-ObjectFieldValue -FieldName 'ThrowManual' -Object $ErrData
-            $ErrFields['DebugInfo']   = Get-ObjectFieldValue -FieldName 'DebugInfo'   -Object $ErrData
-            $ErrFields['CallStack']   = Get-ObjectFieldValue -FieldName 'CallStack'   -Object $ErrData
+            $ErrFields['ThrowManual'] = Get-ObjectFieldValue -FieldName 'ThrowManual' -Object $ErrData -ErrorAction Stop
+            $ErrFields['TraceInfo']   = Get-ObjectFieldValue -FieldName 'TraceInfo'   -Object $ErrData -ErrorAction Stop
+            $ErrFields['CallStack']   = Get-ObjectFieldValue -FieldName 'CallStack'   -Object $ErrData -ErrorAction Stop
         }
     }
     If($ErrorRecord) {
-        $CategoryInfo = Get-ObjectFieldValue -FieldName 'InvocationInfo' -Object $ErrorRecord
+        $ErrFields['ErrorId']  = Get-ObjectFieldValue -FieldName 'FullyQualifiedErrorId' -Object $ErrorRecord -ErrorAction Stop
+        $CategoryInfo = Get-ObjectFieldValue -FieldName 'CategoryInfo' -Object $ErrorRecord
         If($CategoryInfo) {
-            $ErrFields['Reason']      = Get-ObjectFieldValue -FieldName 'Reason'       -Object $CategoryInfo
-            $ErrFields['TargetName']  = Get-ObjectFieldValue -FieldName 'TargetName' -Object $CategoryInfo
-            $ErrFields['TargetType']  = Get-ObjectFieldValue -FieldName 'TargetType' -Object $CategoryInfo
+            $ErrFields['Category']    = Get-ObjectFieldValue -FieldName 'Category'   -Object $CategoryInfo -ErrorAction Stop
+            $ErrFields['Reason']      = Get-ObjectFieldValue -FieldName 'Reason'     -Object $CategoryInfo -ErrorAction Stop
+            $ErrFields['TargetName']  = Get-ObjectFieldValue -FieldName 'TargetName' -Object $CategoryInfo -ErrorAction Stop
+            $ErrFields['TargetType']  = Get-ObjectFieldValue -FieldName 'TargetType' -Object $CategoryInfo -ErrorAction Stop
         }
-        $ErrFields['ErrDetails']  = Get-ObjectFieldValue -FieldName 'ErrorDetails' -Object $ErrorRecord
-        $InvocationInfo = Get-ObjectFieldValue -FieldName 'InvocationInfo' -Object $ErrorRecord
+        $ErrFields['ErrDetails']  = Get-ObjectFieldValue -FieldName 'ErrorDetails' -Object $ErrorRecord -ErrorAction Stop
+        $InvocationInfo = Get-ObjectFieldValue -FieldName 'InvocationInfo' -Object $ErrorRecord -ErrorAction Stop
         If($InvocationInfo) {
-            $ErrFields['ErrLine']     = ([string]$(Get-ObjectFieldValue -FieldName 'Line'  -Object $InvocationInfo)).TrimEnd("`r","`n"," ")
-            $ErrFields['LineNum']     = Get-ObjectFieldValue -FieldName 'ScriptLineNumber' -Object $InvocationInfo
-            $ErrFields['Position']    = Get-ObjectFieldValue -FieldName 'OffsetInLine'     -Object $InvocationInfo
-            $FuncName = Get-ObjectFieldValue -FieldName 'MyCommand'      -Object $InvocationInfo
-            $CallName = Get-ObjectFieldValue -FieldName 'InvocationName' -Object $InvocationInfo
+            $ErrFields['ErrLine']     = ([string]$(Get-ObjectFieldValue -FieldName 'Line'  -Object $InvocationInfo -ErrorAction Stop)).TrimEnd("`r","`n"," ")
+            $ErrFields['LineNum']     = Get-ObjectFieldValue -FieldName 'ScriptLineNumber' -Object $InvocationInfo -ErrorAction Stop
+            $ErrFields['Position']    = Get-ObjectFieldValue -FieldName 'OffsetInLine'     -Object $InvocationInfo -ErrorAction Stop
+            $FuncName = Get-ObjectFieldValue -FieldName 'MyCommand'      -Object $InvocationInfo -ErrorAction Stop
+            $CallName = Get-ObjectFieldValue -FieldName 'InvocationName' -Object $InvocationInfo -ErrorAction Stop
             $ErrFields['FuncName']    = $FuncName
             $ErrFields['CallName']    = $CallName
-            $PosMsg = Get-ObjectFieldValue -FieldName 'PositionMessage' -Object $InvocationInfo
-            $PosMsg = Format-ErrorPositionMessage $PosMsg
+            $PosMsg = Get-ObjectFieldValue -FieldName 'PositionMessage' -Object $InvocationInfo -ErrorAction Stop
+            $PosMsg = Format-ErrorPositionMessage $PosMsg -ErrorAction Stop
             $ErrFields['ErrPosition'] = $PosMsg
         }
-        $StackTrace  = Get-ObjectFieldValue -FieldName 'ScriptStackTrace' -Object $ErrorRecord
+        $StackTrace  = Get-ObjectFieldValue -FieldName 'ScriptStackTrace' -Object $ErrorRecord -ErrorAction Stop
         If($StackTrace) {
-            $ErrorTraces = Get-ErrorStackTrace  $StackTrace
+            [Hashtable[]]$ErrorTraces = [Hashtable[]](Get-ErrorStackTrace  $StackTrace -ErrorAction Stop)
             $ErrFields['ErrTraces']   = $ErrorTraces
             If($null -ne $ErrorTraces -And $ErrorTraces.Count -gt 0) {
                 If(-Not $FuncName) { $ErrFields['FuncName'] = $ErrorTraces[-1].StackFuncName }
@@ -381,28 +679,102 @@ Function Parse-ErrorDetails {
             }) -join "-> "
             $ErrFields['ErrTraceMsg'] = $ErrorTraceMsg
         }
-
     }
-    return $ErrFields
+    return [Hashtable]$ErrFields
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Get-ObjectFieldValue
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER Object
+	(Mandatory) Specifies ...
+	Expected type: [Object]
+
+.PARAMETER FieldName
+	(Mandatory) Specifies ...
+	Expected type: [String]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$null - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Get-ObjectFieldValue -Object $Object -FieldName $FieldName
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Get-ObjectFieldValue {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [Object]$Object,
+
         [Parameter(Mandatory)]
         [string]$FieldName
     )
     If ($null -eq $Object) { return $null }
-    If(@(Get-Member -Input $Object -Member Properties | Select -Expand Name) -contains $FieldName) {
+    If(@(Get-Member -Input $Object -Member Properties -ErrorAction Stop | Select -Expand Name) -contains $FieldName) {
         return $Object.$FieldName
-    } ElseIf (@(Get-Member -Input $Object -Member Properties | Select -Expand Name) -contains 'Keys') {
+    } ElseIf (@(Get-Member -Input $Object -Member Properties -ErrorAction Stop | Select -Expand Name) -contains 'Keys') {
         return $Object[$FieldName]
     }
     return $null
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Traverse-ErrorRecord
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorRecord
+	(Mandatory) Specifies ...
+	Expected type: [ErrorRecord]
+
+.PARAMETER NestingType
+	(Mandatory) Specifies ...
+	Expected type: [String]
+	Allowed Values: Exception, InnerException
+	Default Value: 'Exception'
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$NestedRecord - returned when ...
+	$innerRecord  - returned when ...
+	$null         - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Traverse-ErrorRecord -ErrorRecord $ErrorRecord -NestingType $NestingType
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Traverse-ErrorRecord {
     [CmdletBinding()]
     Param(
@@ -415,23 +787,21 @@ Function Traverse-ErrorRecord {
     )
     If ($NestingType -eq 'Exception') {
         If($null -ne $ErrorRecord) {
-            $ExceptionObject = Get-ObjectFieldValue -FieldName 'Exception' -Object $ErrorRecord
+            $ExceptionObject = Get-ObjectFieldValue -FieldName 'Exception' -Object $ErrorRecord -ErrorAction Stop
             If($null -ne $ExceptionObject) {
-                $NestedRecord = Get-ObjectFieldValue -FieldName 'ErrorRecord' -Object $ExceptionObject
+                $NestedRecord = Get-ObjectFieldValue -FieldName 'ErrorRecord' -Object $ExceptionObject -ErrorAction Stop
                 If($NestedRecord) {
                     return $NestedRecord
                 }
             }
         }
     } ElseIf ($NestingType -eq 'InnerException') {
-        $Global:testErr6 = $ErrorRecord
         If($null -ne $ErrorRecord) {
-            $exceptionObject = Get-ObjectFieldValue -FieldName 'Exception' -Object $ErrorRecord
+            $exceptionObject = Get-ObjectFieldValue -FieldName 'Exception' -Object $ErrorRecord -ErrorAction Stop
             If($null -ne $exceptionObject) {
-                $Global:excObj2 = $exceptionObject
-                $innerExceptionObject = Get-ObjectFieldValue -FieldName 'InnerException' -Object $ErrorRecord.Exception
+                $innerExceptionObject = Get-ObjectFieldValue -FieldName 'InnerException' -Object $ErrorRecord.Exception -ErrorAction Stop
                 If($null -ne $innerExceptionObject) {
-                    $innerRecord = Get-ObjectFieldValue -FieldName 'ErrorRecord' -Object $innerExceptionObject
+                    $innerRecord = Get-ObjectFieldValue -FieldName 'ErrorRecord' -Object $innerExceptionObject -ErrorAction Stop
                     If($null -ne $innerRecord) {
                         return $innerRecord
                     }
@@ -442,71 +812,136 @@ Function Traverse-ErrorRecord {
     return $null
 }
 
-Function Build-DebugErrorDetails {
+<#
+.SYNOPSIS
+	Title   : Function Build-TraceErrorDetails
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorRecord
+	(Mandatory) Specifies ...
+	Expected type: [ErrorRecord]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$Errors - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Build-TraceErrorDetails -ErrorRecord $ErrorRecord
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
+Function Build-TraceErrorDetails {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [System.Management.Automation.ErrorRecord]$ErrorRecord
     )
-    $Errors = @()
+    [Hashtable[]]$Errors = @()
     $currentRecord = $ErrorRecord
-    $MaxDepth = 5
-    $index = 0
+    [byte]$MaxDepth = 5
+    [byte]$index = 0
     While ($currentRecord) {
         $currentError = @{}
-        $exceptionObject = Get-ObjectFieldValue -Object $currentRecord -FieldName 'Exception'
-        If($exceptionObject) {
-            $currentError = $(Parse-ErrorDetails -ErrorRecord $currentRecord -Exception $exceptionObject)
+        $exceptionObject = Get-ObjectFieldValue -Object $currentRecord -FieldName 'Exception' -ErrorAction Stop
+        If ($exceptionObject) {
+            $currentError = $(Parse-ErrorDetails -ErrorRecord $currentRecord -Exception $exceptionObject -ErrorAction Stop)
         } Else {
-            Break
+            break
         }
         $innerErrors = @()
-        $innerException = Get-ObjectFieldValue -Object $exceptionObject -FieldName 'InnerException'
-        If($innerException) {
-            $innerRecord = Traverse-ErrorRecord -ErrorRecord $currentRecord -NestingType 'InnerException'
-            If($innerRecord) { # If there is embedded ErrorRecord inside InnerException, then proceed to parse information from it
+        $innerException = Get-ObjectFieldValue -Object $exceptionObject -FieldName 'InnerException' -ErrorAction Stop
+        If ($innerException) {
+            $innerRecord = Traverse-ErrorRecord -ErrorRecord $currentRecord -NestingType 'InnerException' -ErrorAction Stop
+            If ($innerRecord) { # If there is embedded ErrorRecord inside InnerException, then proceed to parse information from it
                                # Nesting structure: $currentRecord.Exception.InnerException.ErrorRecord
-                $exceptionObject = Get-ObjectFieldValue -Object $innerRecord -FieldName 'Exception'
-                If($exceptionObject) {
+                $exceptionObject = Get-ObjectFieldValue -Object $innerRecord -FieldName 'Exception' -ErrorAction Stop
+                If ($exceptionObject) {
                     $innerIndex = 0
                     While ($innerRecord) {
-                        $innerError = Parse-ErrorDetails -ErrorRecord $innerRecord -Exception $exceptionObject
+                        $innerError = Parse-ErrorDetails -ErrorRecord $innerRecord -Exception $exceptionObject -ErrorAction Stop
                         $innerErrors += $innerError
                         $innerIndex++
-                        If($innerIndex -gt $MaxDepth) { Break }
-                        $innerRecord = Traverse-ErrorRecord -ErrorRecord $innerRecord -NestingType 'InnerException'
+                        If ($innerIndex -gt $MaxDepth) { break }
+                        $innerRecord = Traverse-ErrorRecord -ErrorRecord $innerRecord -NestingType 'InnerException' -ErrorAction Stop
                     }
                 }
             } Else { # Else - proceed to parse information just from InnerException
-                $innerError = Parse-ErrorDetails -Exception $innerException
+                $innerError = Parse-ErrorDetails -Exception $innerException -ErrorAction Stop
                 $innerErrors += $innerError
-                $Global:inerr1 = $innerError
             }
         }
         $currentError['innerErrors'] = $innerErrors
         $Errors += $currentError
         $index++
-        If($index -gt $MaxDepth) { Break }
-        $currentRecord = $(Traverse-ErrorRecord -ErrorRecord $currentRecord -NestingType Exception)
+        If ($index -gt $MaxDepth) { break }
+        $currentRecord = $(Traverse-ErrorRecord -ErrorRecord $currentRecord -NestingType Exception -ErrorAction Stop)
     }
     return $Errors
 }
 
-Function Format-DebugErrorMessage {
+<#
+.SYNOPSIS
+	Title   : Function Format-TraceErrorMessage
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorDetail
+	(Mandatory) Specifies ...
+	Expected type: [Hashtable]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$errorMessage - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Format-TraceErrorMessage -ErrorDetail $ErrorDetail
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
+Function Format-TraceErrorMessage {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [Hashtable]$ErrorDetail
     )
-    $item = $ErrorDetail
-    $errorMessage = @()
-    If($item.Message) { $errorMessage += "Error: $($item.Message)" }
-    If($item.Reason) { $errorMessage += "Reason: $($item.Reason)" }
+    [Hashtable]$item = $ErrorDetail
+    [string[]]$errorMessage = [string[]]@()
+    [string]$ErrorDelimiterLine = [string]$('-' * 80)
+    If($item.Message) { $errorMessage += "$($item.Message)" }
+    $errorMessage += $ErrorDelimiterLine
+    $errorMessage += '[TRACE Error Details]'
+
+    If($item.Reason)  { $errorMessage += "Reason: $($item.Reason)" }
     If($item.Category -And $item.Category -ne 'NotSpecified') {
         $errorMessage += "Category: $($item.Category)"
     }
-    If($item.ErrorId) { $errorMessage += "Error ID: $($item.ErrorId)" }
+    If($item.ErrorId)  { $errorMessage += "Error ID: $($item.ErrorId)" }
     If($item.ErrCodeD) { $errorMessage += "Error Code DEC: $($item.ErrCodeD)" }
     If($item.ErrCodeH) { $errorMessage += "Error Code HEX: $($item.ErrCodeH)" }
     If($item.Win32ErrMsg) {
@@ -528,260 +963,236 @@ Function Format-DebugErrorMessage {
     If($item.TargetName) { $errorMessage += "Target Name: $($item.TargetName)" }
     If($item.TargetType) { $errorMessage += "Target Type: $($item.TargetType)" }
     If($item.ThrowManual) {
-        $errorMessage += "Debug Info: $($item['DebugInfo'])"
-        $errorMessage += "Debug Info: $($item['CallStack'])"
+        $errorMessage += $ErrorDelimiterLine
+        $errorMessage += "[TRACE Variables]: $($item['TraceInfo'])"
+        $errorMessage += $ErrorDelimiterLine
+        $errorMessage += "[TRACE CallStack]: $($item['CallStack'])"
+        $errorMessage += $ErrorDelimiterLine
     }
-    return $errorMessage
+    return [string[]]$errorMessage
 }
 
-Function Build-DebugErrorMessage {
+<#
+.SYNOPSIS
+	Title   : Function Build-TraceErrorMessage
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorDetails
+	(Mandatory) Specifies ...
+	Expected type: [Hashtable[]]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$errorMessages - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Build-TraceErrorMessage -ErrorDetails $ErrorDetails
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
+Function Build-TraceErrorMessage {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [Hashtable[]]$ErrorDetails
     )
-    $errorMessages = @()
+    [string[]]$errorMessages = [string[]]@()
+    [string]$ErrorDelimiterLine = [string]$('-' * 80)
     Foreach ($item in $ErrorDetails) {
-        $errorMessage = Format-DebugErrorMessage $item
+        [string[]]$errorMessage = [string[]]$(Format-TraceErrorMessage $item -ErrorAction Stop)
         $errorMessages += $($errorMessage -join "`n")
         Foreach($innerItem in $item.innerErrors) {
             If($innerItem) {
-                $errorMessages += "[inner Exception Error]:"
-                $errorMessages += $($(Format-DebugErrorMessage $innerItem) -join "`n")
+                $errorMessages += "[Inner Exception Error]:"
+                $errorMessages += $([string[]]$(Format-TraceErrorMessage $innerItem -ErrorAction Stop) -join "`n")
+                $errorMessages += $ErrorDelimiterLine
             }
         }
     }
-    return $errorMessages
+    return [string[]]$errorMessages
 }
 
+<#
+.SYNOPSIS
+	Title   : Function Compact-DuplicateErrorDetails
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorDetails
+	(Mandatory) Specifies ...
+	Expected type: [Hashtable[]]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$result - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Compact-DuplicateErrorDetails -ErrorDetails $ErrorDetails
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Compact-DuplicateErrorDetails {
+    [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [Hashtable[]]$ErrorDetails
     )
-    $result = @()
+    [Hashtable[]]$result = [Hashtable[]]@()
     Foreach ($item in $ErrorDetails) {
-        If ($result.Count -eq 0 -or $result[-1].Message -ne $item.Message) {
+        If ($result.Count -eq 0 -OR $result[-1].Message -ne $item.Message) {
             # Add new entry if first item or message changed
             $result += $item.Clone()
-        }
-        Else {
+        } Else {
             # Merge reasons while maintaining uniqueness
-            $existingReasons = @($result[-1].Reason -split ', ') 
-            $newReasons = @($item.Reason -split ', ') 
-            $combined = @($existingReasons + $newReasons) | Select -Unique
+            [string[]]$existingReasons = [string[]]@($result[-1].Reason -split ', ') 
+            [string[]]$newReasons = [string[]]@($item.Reason -split ', ') 
+            [string[]]$combined = [string[]]@(@($existingReasons + $newReasons) | Select -Unique)
             $result[-1].Reason = [string]($combined -join ', ')
         }
     }
-    return $result
+    return [Hashtable[]]$result
 }
 
-Function Get-DebugErrorMessage {
+<#
+.SYNOPSIS
+	Title   : Function Get-TraceErrorMessage
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
+
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
+
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorRecord
+	(Mandatory) Specifies ...
+	Expected type: [ErrorRecord]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$TraceErrorMessage - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Get-TraceErrorMessage -ErrorRecord $ErrorRecord
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
+Function Get-TraceErrorMessage {
     [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [System.Management.Automation.ErrorRecord]$ErrorRecord
     )
-    $ErrorDetails = Build-DebugErrorDetails -ErrorRecord $ErrorRecord
-    $Global:errDetails = $ErrorDetails
-    $ErrorDetails = Compact-DuplicateErrorDetails $ErrorDetails
-    $debugErrorMessage = $(Build-DebugErrorMessage $ErrorDetails) -join "`n"
-    return $debugErrorMessage
+    $ErrorDetails = Build-TraceErrorDetails -ErrorRecord $ErrorRecord -ErrorAction Stop
+    $ErrorDetails = Compact-DuplicateErrorDetails $ErrorDetails -ErrorAction Stop
+    [string]$TraceErrorMessage = [string]($(Build-TraceErrorMessage $ErrorDetails -ErrorAction Stop) -join "`n")
+    return [string]$TraceErrorMessage
 }
 
-Function Show-OutputExceptionInfo {
-    Param(
-        [Parameter(Mandatory)]
-        [ValidateNotNullOrEmpty()]
-        [System.Management.Automation.ErrorRecord]$ErrorRecord
-    )
-    $i = 0
-    [Hashtable[]]$errors = @()
-    While ($ErrorRecord.Exception) {
-        $iError = @{}
-        $Message = $ErrorRecord.Exception.Message
-        $iError['Message'] = $Message
-        $Category = $ErrorRecord.CategoryInfo.Category
-        $ErrorId = $ErrorRecord.FullyQualifiedErrorId
-        $Reason  = $ErrorRecord.CategoryInfo.Reason
-        $ErrCodeD  = $ErrorRecord.Exception.HResult
-        $ErrCodeH = "0x{0:X8}" -f $ErrCodeD
-        $Win32ErrorMessage = $(Get-ActualError $ErrCodeD).Message
-        $ErrorDetails = $ErrorRecord.ErrorDetails
-        $ErrLine = $ErrorRecord.InvocationInfo.Line.TrimEnd("`r","`n"," ")
-        $LineNum = $ErrorRecord.InvocationInfo.ScriptLineNumber
-        $Position = $ErrorRecord.InvocationInfo.OffsetInLine
-        $FuncName = $ErrorRecord.InvocationInfo.MyCommand
-        $CallName = $ErrorRecord.InvocationInfo.InvocationName
-        $TargetName = $ErrorRecord.CategoryInfo.TargetName
-        $TargetType = $ErrorRecord.CategoryInfo.TargetType
-        $ThrownManually = $ErrorRecord.Exception.Data['ThrownManually']
-        If($ThrownManually) {
-            $iError['DebugInfo'] = $ErrorRecord.Exception.Data['DebugInfo']
-            $iError['CallStack'] = $ErrorRecord.Exception.Data['CallStack']
-        }
-        $iError['ErrorId']  = $ErrorId
-        $iError['Reason']   = $Reason
-        $iError['Category'] = $Category
-        $iError['ErrCodeD'] = $ErrCodeD
-        $iError['ErrCodeH'] = $ErrCodeH
-        $iError['Win32ErrorMessage'] = $(If($Win32ErrorMessage -inotlike 'Unknown Error *') { $Win32ErrorMessage })
-        $iError['ErrorDetails'] = $ErrorDetails
-        $iError['ErrLine']  = $ErrLine
-        $iError['LineNum']  = $LineNum
-        $iError['Position'] = $Position
-        $iError['TargetName'] = $TargetName
-        $iError['TargetType'] = $TargetType
-        $iError['FuncName'] = $FuncName
-        $iError['CallName'] = $CallName
-        $iError['ThrownManually'] = $ThrownManually
-        $ErrorTraces = @()
-        $StackTrace = $ErrorRecord.ScriptStackTrace
-        $StackTraceMatches = Select-String '[A-Z]+ ([^,]+), ([A-Z]:\\[^:]+|[^:]+): [A-Z]+ ([\d]+)' -Input $StackTrace -AllMatches
-        If($StackTraceMatches -And $StackTraceMatches.Matches) {
-            Foreach($StackTraceMatch in $StackTraceMatches.Matches) {
-                $ErrorTrace = @{}
-                $StackFuncName = $StackTraceMatch.Groups[1].Value 
-                $ErrorTrace['StackFuncName'] = $(If($StackFuncName -ne '<ScriptBlock>') { $StackFuncName } Else { '<Script>' })
-                $ScriptPath = $StackTraceMatch.Groups[2].Value
-                $ScriptPathShort = ''
-                $ScriptName = ''
-                If(Test-Path $ScriptPath -IsValid) {
-                    $ScriptName = Split-Path $ScriptPath -Leaf
-                    $ScriptPathShort = "...\$ScriptName"
-                }
-                $ErrorTrace['ScriptPath'] = $ScriptPath
-                $ErrorTrace['ScriptName'] = $ScriptName
-                $ErrorTrace['ScriptPathShort'] = $ScriptPathShort
-                $ErrorTrace['LineNum']  = $StackTraceMatch.Groups[3].Value
-                $ErrorTraces += $ErrorTrace
-            }
-        }
-        $iError['ErrorTraces'] = $ErrorTraces
-        $ErrorTraceMsg = ''
-        [Array]::Reverse($ErrorTraces)
-        If(-Not $FuncName) { $iError['FuncName']= $ErrorTraces[-1].StackFuncName }
-        $ErrorTraceMsg = $(Foreach ($ErrorTrace in $ErrorTraces) {
-            "$($ErrorTrace['StackFuncName']){... at Line:$($ErrorTrace.LineNum) "
-        }) -join "-> "
-        $iError['ErrorTraceMsg'] = $ErrorTraceMsg
-        $PosMsg = $ErrorRecord.InvocationInfo.PositionMessage
-        If($PosMsg -match '.+\.ps1:.+\n') {
-            $PosLines = $PosMsg.Split("`n")
-            If($PosLines[0] -match '^([^ ]+ )([A-Z]:\\[^:]+|[^:]+)(:.+)$') {
-                $PosPrefix = $Matches[1]
-                $PosPath   = $Matches[2]
-                $PosEnding = $Matches[3]
-                If(Test-Path $PosPath -IsValid) {
-                    $PosLines[0] = "$PosPrefix ...\$(Split-Path $PosPath -Leaf)$PosEnding"
-                    $PosMsg = $PosLines -join "`n"
-                }
-            }
-        }
-        $iError['ErrorPosition'] = $PosMsg
-        $InnerExceptions = @()
-        If($ErrorRecord.Exception.InnerException) {
-            $InnerException = $ErrorRecord.Exception.InnerException
-            $j = 0
-            While($InnerException) {
-                $iInnerException = @{}
-                $iInnerException['Message'] = $InnerException.Message
-                $InnerExceptions += $iInnerException
-                If(@(Get-Member -Input $InnerException -Member Properties | Select -Expand Name) -contains 'InnerException') {
-                    $InnerException = $InnerException.InnerException
-                } Else {
-                    Break
-                }
-                $j++
-            }
-        }
-        $iError['InnerExceptions'] = $InnerExceptions
-        $errors += $iError
-        If(@(Get-Member -Input $ErrorRecord.Exception -Member Properties | Select -Expand Name) -contains 'ErrorRecord') {
-            $ErrorRecord = $ErrorRecord.Exception.ErrorRecord
-        } Else {
-            Break
-        }
-        $i++
-    }
-    $result = @()
-    Foreach ($item in $errors) {
-        If ($result.Count -eq 0 -or $result[-1].Message -ne $item.Message) {
-            # Add new entry if first item or message changed
-            $result += $item.Clone()
-        }
-        Else {
-            # Merge reasons while maintaining uniqueness
-            $existingReasons = @($result[-1].Reason -split ', ') 
-            $newReasons = @($item.Reason -split ', ') 
-            $combined = @($existingReasons + $newReasons) | Select -Unique
-            $result[-1].Reason = [string]($combined -join ', ')
-        }
-    }
+<#
+.SYNOPSIS
+	Title   : Function Append-ThrownErrorData
+	Author  : Jon Damvi
+	Version : 1.0.0
+	Date    : 01.06.2025
+	License : MIT (LICENSE)
 
-    Foreach ($item in $result) {
-        Write-Host "Error: $($ErrorRecord.Exception.Message)" -ForegroundColor Green
-        Write-Host "Reason: $($item.Reason)" -ForegroundColor Green
-        If($item.Category -And $item.Category -ne 'NotSpecified') {
-            Write-Host "Category: $($item.Category)" -ForegroundColor Green
-        }
-        Write-Host "Error ID: $($item.ErrorId)" -ForegroundColor Green
-        Write-Host "Error Code DEC: $($item.ErrCodeD)" -ForegroundColor Green
-        Write-Host "Error Code HEX: $($item.ErrCodeH)" -ForegroundColor Green
-        If($item.Win32ErrorMessage) {
-            Write-Host "Win32 Error Message: $($item.Win32ErrorMessage)" -ForegroundColor Green
-        }
-        If($item.InnerExceptions) {
-            Foreach($InnerException in $item.InnerExceptions) {
-                Write-Host "Inner Exception Error: $($InnerException.Message)" -ForegroundColor Green
-            }
-        }
-        $AliasName = $(If($null -ne $item.CallName -And $item.CallName -ne '' -And $item.CallName -ne $item.FuncName) { $item.CallName })
-        $CalledFuncName = $(If(-Not $AliasName) { $($item.FuncName) } Else { "#$AliasName->[$CalledFuncName]" })
-        Write-Host "Occurred at: $CalledFuncName" -ForegroundColor Green
-        If($item.CallName) {
-            Write-Host "Invoked Alias Name: $($item.CallName)" -ForegroundColor Green
-        }
-        Write-Host "Thrown Manually: $($item.ThrownManually)" -ForegroundColor Green
-        Write-Host "Error Trace: $($item.ErrorTraceMsg)" -ForegroundColor Green
-        Write-Host "Error Details: $($item.ErrorDetails)" -ForegroundColor Green
-        Write-Host "Error Line: $($item.ErrLine)" -ForegroundColor Green
-        Write-Host "Line Number: $($item.LineNum)" -ForegroundColor Green
-        Write-Host "Char Offset: $($item.Position)" -ForegroundColor Green
-        Write-Host "Position Message: $($item.ErrorPosition)" -ForegroundColor Green
-        If($item.TargetName) {
-            Write-Host "Target Name: $($item.TargetName)" -ForegroundColor Green
-        }
-        If($item.TargetType) {
-            Write-Host "Target Type: $($item.TargetType)" -ForegroundColor Green
-        }
-        If($item.ThrownManually) {
-            Write-Host "Debug Info: $($item['DebugInfo'])" -ForegroundColor Green
-            Write-Host "Debug Info: $($item['CallStack'])" -ForegroundColor Green
-        }
-    }
-}
+	Release Notes: 
+		v1.0.0 (01.06.2025) - initial release (by Jon Damvi).
 
+.DESCRIPTION
+	[Description to be added]
+
+.PARAMETER ErrorRecord
+	(Mandatory) Specifies ...
+	Expected type: [ErrorRecord]
+
+.PARAMETER FunctionName
+	(Mandatory) Specifies ...
+	Expected type: [String]
+
+.INPUTS
+	None
+
+.OUTPUTS
+	$ErrorRecord - returned when ...
+
+.EXAMPLE
+	# Usage Case ... Example Description :
+	PS > Append-ThrownErrorData -ErrorRecord $ErrorRecord -FunctionName $FunctionName
+
+.LINK
+	https://github.com/jondamvi/PSV.DebugTraceTools
+#>
 Function Append-ThrownErrorData {
+    [CmdletBinding()]
     Param(
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [System.Management.Automation.ErrorRecord]$ErrorRecord,
+
         [Parameter(Mandatory)]
         [ValidateNotNullOrEmpty()]
         [string]$FunctionName
     )
-    $DebugInfo = $(Format-DebugInfo -Message "Error in $FunctionName" -TransitivePoint -Scope 1)
-    $CallStack = $(Format-DebugInfo -Message "CallStack" -EntryPoint -Scope 1)
-    $ErrorRecord.Exception.Data['DebugInfo'] = $DebugInfo
+    If (-Not $FunctionName) {
+        [string]$FunctionName = [string](@(Get-PSCallStack -ErrorAction Stop)[1].FunctionName)
+    }
+    [string]$TraceInfo = [string]$(Format-TraceInfo -Message "Error in $FunctionName" -TransitivePoint -Scope 1 -ErrorAction Stop)
+    [string]$CallStack = [string]$(Format-TraceInfo -Message "CallStack" -EntryPoint -Scope 1 -ErrorAction Stop)
+    $ErrorRecord.Exception.Data['TraceInfo'] = $TraceInfo
     $ErrorRecord.Exception.Data['CallStack'] = $CallStack
-    $ErrorRecord.Exception.Data['ThrowManual'] = $true
-    return $ErrorRecord
+    $ErrorRecord.Exception.Data['ThrowManual'] = [bool]$true
+    return [System.Management.Automation.ErrorRecord]$ErrorRecord
 }
 
-
+Function Confirm-ErrorThrowManual {
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory)]
+        [ValidateNotNullOrEmpty()]
+        [System.Management.Automation.ErrorRecord]$ErrorRecord
+    )
+    If ($null -ne $ErrorRecord.Exception.Data) {
+        return [bool]$ErrorRecord.Exception.Data['ThrowManual']
+    }
+    return [bool]$false
+}
+# -------------------------------------------------------------------------------------------------
 # EXAMPLE Usage:
 
 function Get-ProcessOutput {
@@ -791,10 +1202,9 @@ function Get-ProcessOutput {
         $reader = $proc.StandardOutput
         $reader.ReadToEnd()
     } catch {
-        throw $_
+        Throw $_
     }
 }
-
 
 Function Some-Function {
     [CmdletBinding()]
@@ -806,6 +1216,7 @@ Function Some-Function {
     )
     $SomeParameter = 5
     $SomeOtherParam = "SomeValue1"
+
     function Nested-Function {
         [CmdletBinding()]
         Param(
@@ -820,26 +1231,23 @@ Function Some-Function {
         function Process-Item {
             param([ValidateSet('1','0')]$item)
             process {
+                    # [ERROR SIMULATION - TEST CASES]:
 
-                    Get-WmiObject -Namespace "root\invalidnamespace" -Class Win32_OperatingSystem -ErrorAction Stop
+                    # 0: Test WMI Query Invalid Namespace:
+                    #Get-WmiObject -Namespace "root\invalidnamespace" -Class Win32_OperatingSystem -ErrorAction Stop
 
                 Try {
-
-                    # 1:
-                    <#
+                    
+                    # 1: Test Division by Zero (.NET operation):
                     $divisor = 0
                     [ref]$out = $null
                     [Math]::DivRem(1,$divisor,$out)
-                    #>
 
-                    # 2:
-                    <#
+                    # 2: Test Uknown Object Type:
                     $excel = New-Object -ComObject Excel.Application
                     $excel.Quit()
-                    #>
 
-                    # 3:
-                    <#
+                    # 3: Test Custom Access Denied Error:
                     $ex = [System.UnauthorizedAccessException]::new("Access denied to resource")
                     $errorRecord = [System.Management.Automation.ErrorRecord]::new(
                         $ex,
@@ -849,54 +1257,343 @@ Function Some-Function {
                     )
                     $errorRecord.ErrorDetails = [System.Management.Automation.ErrorDetails]::new("Check permissions and try again.")
                     throw $errorRecord
-                    #>
 
-                    # 4:
+                    # 4: Test Non-existent process stop:
                     #Stop-Process -Id 999999 -ErrorAction Stop
 
-                    # 5:
+                    # 5: Test Non-existent process query:
                     #Get-ProcessOutput -pid 0
 
-                    # 6:
+                    # 6: Test Invalid Regex Pattern:
                     #if ("test" -match "[unclosed") { }
 
-                    # 7:
+                    # 7: Test Method invocation on null-object:
                     #$nullObject = $null
                     #$nullObject.ToString()
 
                     # To-Do: Fix omit duplicating innner error
-                    # 8:
+                    # 8: Test incorrect type value assignment:
                     #[int]"abc"
 
-                    # 9:
-                    1,0,3 | ForEach-Object { Process-Item $_ }
-                    
+                    # 9: Test Pipeline Error:
+                    #1,0,3 | ForEach-Object { Process-Item $_ }
 
+                    # 10: Test Division by Zero (Powershell Operation):
+                    #1/0
                 } Catch {
-            
-                    throw $(Append-ThrownErrorData $_ -FunctionName $MyInvocation.MyCommand.Name)
+                    Write-Host $(Get-TraceErrorMessage -ErrorRecord $_ -ErrorAction Stop) -ForegroundColor Red
+                    Write-Host ""
+                    Write-Host "--------------------------------------------------------------------"
+                    Write-Host ""
+                    Throw $(Append-ThrownErrorData $_ -FunctionName $MyInvocation.MyCommand.Name -ErrorAction Stop)
                 }
-
             }
         }
-
         Process-Item
-
     }
     Try {
         Nested-Function -TestBool $true -TestSwitch -TestString "NEw String Value!" -testInt 52 -ErrorAction Stop
     } Catch {
-        $global:testErr12 = $_
-        Try {
-            Write-Host $(Get-DebugErrorMessage -ErrorRecord $_) -ForegroundColor Green
-        } Catch {
-
-            $global:testErr11 = $_
-        }
-        
+        # Observe here Rich-Exception Data Trace Details: Trace Variables, Trace CallStack and Indication of manually thrown exception:
+        Write-Host $(Get-TraceErrorMessage -ErrorRecord $_ -ErrorAction Stop) -ForegroundColor Magenta
     }
 }
 
-
 Some-Function -ErrorAction Stop
 
+
+
+<#
+# Error Simulation Advanced Test-Cases:
+# Example 1: Creating an ErrorRecord that contains another ErrorRecord
+function New-NestedErrorRecordStructure {
+    # Create the innermost ErrorRecord
+    $innermostException = New-Object System.InvalidOperationException("Core failure")
+    $innermostErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $innermostException,
+        "CoreError",
+        [System.Management.Automation.ErrorCategory]::InvalidOperation,
+        "InnerTarget"
+    )
+    
+    # Create an exception that wraps the ErrorRecord
+    $wrapperException = New-Object System.Management.Automation.RuntimeException(
+        "Middle layer error",
+        $null,  # No inner exception here
+        $innermostErrorRecord  # But we pass the ErrorRecord as additional data
+    )
+    
+    # Add the ErrorRecord to the exception's data
+    $wrapperException.Data["ErrorRecord"] = $innermostErrorRecord
+    
+    # Create a middle ErrorRecord
+    $middleErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $wrapperException,
+        "MiddleError",
+        [System.Management.Automation.ErrorCategory]::OperationStopped,
+        "MiddleTarget"
+    )
+    
+    # Create the outermost exception that contains the middle ErrorRecord
+    $outermostException = New-Object System.Management.Automation.RemoteException(
+        "Outer layer error",
+        $null,
+        $middleErrorRecord
+    )
+    
+    # Set the ErrorRecord property on the exception
+    $outermostException.GetType().GetProperty(
+        "ErrorRecord", 
+        [System.Reflection.BindingFlags]::NonPublic -bor [System.Reflection.BindingFlags]::Instance
+    ).SetValue($outermostException, $middleErrorRecord)
+    
+    # Create the final ErrorRecord
+    $outerErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $outermostException,
+        "OuterError",
+        [System.Management.Automation.ErrorCategory]::RemoteOperationError,
+        "OuterTarget"
+    )
+    
+    return $outerErrorRecord
+}
+
+# Example 2: Simulating remote/job error nesting
+function Test-RemoteErrorNesting {
+    [CmdletBinding()]
+    Param()
+    [ScriptBlock]$scriptBlock = [ScriptBlock]{
+        try {
+            Throw "Initial error in remote session"
+        }
+        catch {
+            # This creates the first ErrorRecord
+            Write-Error "$($_.Exception)"
+        }
+    }
+    # Run in a job to simulate remote execution
+    $job = Start-Job -ScriptBlock $scriptBlock -ErrorAction Continue
+    Wait-Job $job | Out-Null
+    
+    try {
+        # Receive-Job wraps errors in additional ErrorRecord layers
+        Receive-Job $job -ErrorAction Stop
+    }
+    catch {
+        # This error will have nested ErrorRecord structure
+        return $_
+    }
+    finally {
+        Remove-Job $job -Force
+    }
+}
+
+# Example 3: Manually creating the nested structure you mentioned
+# Corrected Example 3: Creating deeply nested ErrorRecord structures
+function New-DeepNestedErrorRecord {
+    # Level 1 - Innermost
+    $level1Exception = New-Object System.Exception("Level 1 error")
+    $level1ErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $level1Exception, "Error1", "InvalidOperation", $null
+    )
+    
+    # Level 2 - Wrap Level 1 ErrorRecord in a custom exception
+    $level2Exception = New-Object System.Exception("Level 2 error")
+    # Add the ErrorRecord as a property
+    Add-Member -InputObject $level2Exception -MemberType NoteProperty -Name "ErrorRecord" -Value $level1ErrorRecord -Force
+    
+    $level2ErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $level2Exception, "Error2", "InvalidOperation", $null
+    )
+    
+    # Level 3 - Contains Level 2 ErrorRecord
+    $level3Exception = New-Object System.Exception("Level 3 error")
+    Add-Member -InputObject $level3Exception -MemberType NoteProperty -Name "ErrorRecord" -Value $level2ErrorRecord -Force
+    
+    $level3ErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $level3Exception, "Error3", "InvalidOperation", $null
+    )
+    
+    # Level 4 - Outermost
+    $level4Exception = New-Object System.Exception("Level 4 error")
+    Add-Member -InputObject $level4Exception -MemberType NoteProperty -Name "ErrorRecord" -Value $level3ErrorRecord -Force
+    
+    $level4ErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $level4Exception, "Error4", "InvalidOperation", $null
+    )
+    
+    return $level4ErrorRecord
+}
+
+
+# Corrected Real-world test case 2: Custom ErrorRecord subclass with proper property naming
+Add-Type @'
+using System;
+using System.Management.Automation;
+
+namespace CustomErrors {
+    public class ExtendedErrorRecord : ErrorRecord {
+        public ErrorRecord ErrorRecord { get; set; }  // Named exactly as your framework expects
+        public string RemoteComputerName { get; set; }
+        
+        public ExtendedErrorRecord(Exception exception, string errorId, 
+            ErrorCategory errorCategory, object targetObject, ErrorRecord errorRecord) 
+            : base(exception, errorId, errorCategory, targetObject) {
+            this.ErrorRecord = errorRecord;
+        }
+    }
+    
+    public class RemotingException : Exception {
+        public ErrorRecord ErrorRecord { get; set; }  // Also follows the naming convention
+        public string OriginInfo { get; set; }
+        
+        public RemotingException(string message, ErrorRecord errorRecord) : base(message) {
+            this.ErrorRecord = errorRecord;
+        }
+    }
+    
+    // Additional complex exception type that might be seen in production
+    public class NestedRemotingException : Exception {
+        public ErrorRecord ErrorRecord { get; set; }
+        new public Exception InnerException { get; set; }
+        
+        public NestedRemotingException(string message, ErrorRecord errorRecord, Exception inner) 
+            : base(message, inner) {
+            this.ErrorRecord = errorRecord;
+            this.InnerException = inner;
+        }
+    }
+}
+'@
+
+function Test-CustomErrorRecordSubclass {
+    [CmdletBinding()]
+    Param()
+    
+    # Level 1: Base error
+    $level1Exception = New-Object System.IO.FileNotFoundException(
+        "Cannot find file on remote system"
+    )
+    
+    $level1ErrorRecord = New-Object System.Management.Automation.ErrorRecord(
+        $level1Exception,
+        "RemoteFileNotFound",
+        [System.Management.Automation.ErrorCategory]::ObjectNotFound,
+        "\\RemoteServer\Share\file.txt"
+    )
+    
+    # Level 2: Wrap in custom remoting exception
+    $remotingException = New-Object CustomErrors.RemotingException(
+        "Remote operation failed",
+        $level1ErrorRecord
+    )
+    $remotingException.OriginInfo = "RemoteServer01"
+    
+    # Level 3: Create extended error record with ErrorRecord property
+    $extendedErrorRecord = New-Object CustomErrors.ExtendedErrorRecord(
+        $remotingException,
+        "RemoteOperationFailed", 
+        [System.Management.Automation.ErrorCategory]::ProtocolError,
+        $null,
+        $level1ErrorRecord  # This will be accessible via .ErrorRecord property
+    )
+    $extendedErrorRecord.RemoteComputerName = "RemoteServer01"
+    
+    return $extendedErrorRecord
+}
+
+# Even more complex scenario with multiple ErrorRecord properties at different levels
+function Test-DeepCustomNesting {
+    [CmdletBinding()]
+    Param()
+    
+    # Create a chain where multiple objects have ErrorRecord properties
+    
+    # Bottom level
+    $bottomEx = New-Object System.Exception("Bottom level error")
+    $bottomError = New-Object System.Management.Automation.ErrorRecord(
+        $bottomEx, "BottomError", "InvalidOperation", $null
+    )
+    
+    # Middle level - Exception with ErrorRecord property
+    $middleEx = New-Object System.Exception("Middle level error")
+    Add-Member -InputObject $middleEx -MemberType NoteProperty -Name "ErrorRecord" -Value $bottomError -Force
+    
+    $middleError = New-Object System.Management.Automation.ErrorRecord(
+        $middleEx, "MiddleError", "InvalidOperation", $null
+    )
+    
+    # Top level - Custom exception with both ErrorRecord and nested structure
+    $topEx = New-Object CustomErrors.NestedRemotingException(
+        "Top level error",
+        $middleError,  # This goes to ErrorRecord property
+        $middleEx      # This goes to InnerException
+    )
+    
+    # Create a custom ErrorRecord subclass as the final wrapper
+    $finalError = New-Object CustomErrors.ExtendedErrorRecord(
+        $topEx,
+        "ComplexNestedError",
+        [System.Management.Automation.ErrorCategory]::SecurityError,
+        $null,
+        $middleError  # Another ErrorRecord reference
+    )
+    
+    return $finalError
+}
+
+# Usage examples testing advanced cases:
+
+#Write-Host "`nTraversing the structure:" -ForegroundColor Green
+#Get-NestedErrorRecordInfo -ErrorRecord $nestedError
+
+#Write-Host "`nTesting with real remote execution:" -ForegroundColor Green
+#Test-InvokeCommandNesting
+
+Function Test-ErrorSimulationMain {
+    [CmdletBinding()]
+    Param()
+    Function Test-ErrorSimulationSubfunctionAAA {
+        [CmdletBinding()]
+        Param([byte]$Index,[string]$Name,[switch]$Enable)
+            Function Test-ErrorSimulationSubfunctionBBB {
+                [CmdletBinding()]
+                Param([string]$Value,[switch]$Execute,[byte]$Count)
+
+                #Write-Host "Creating nested ErrorRecord structure..." -ForegroundColor Green
+                #$nestedError = New-DeepNestedErrorRecord
+                #Throw $nestedError
+
+                #$RemoteJobError = Test-RemoteErrorNesting -ErrorAction Stop
+                #Throw $RemoteJobError
+
+                #$TestCase1 = New-NestedErrorRecordStructure
+                #Throw $TestCase1
+
+                #$CustomErrorRecordSubclass = Test-CustomErrorRecordSubclass
+                #Throw $CustomErrorRecordSubclass
+
+                #$CustomEvenMoreComplexCase = Test-DeepCustomNesting
+                #Throw $CustomEvenMoreComplexCase
+            }
+            Try {
+                Test-ErrorSimulationSubfunctionBBB -Execute -Value "ThirdScope" -Count 7 -ErrorAction Stop
+            } Catch {
+                Write-Host $(Get-TraceErrorMessage -ErrorRecord $_ -ErrorAction Stop) -ForegroundColor Red
+                Write-Host ""
+                Write-Host "--------------------------------------------------------------------"
+                Write-Host ""
+                Throw $(Append-ThrownErrorData $_ -FunctionName $MyInvocation.MyCommand.Name -ErrorAction Stop)
+            }
+    }
+    Try {
+        Test-ErrorSimulationSubfunctionAAA -Index 3 -Name "SecondScope" -Enable -ErrorAction Stop
+    } Catch {
+        # Observe here Rich-Exception Data Trace Details: Trace Variables, Trace CallStack and Indication of manually thrown exception:
+        Write-Host $(Get-TraceErrorMessage -ErrorRecord $_ -ErrorAction Stop) -ForegroundColor Magenta
+    }
+}
+
+Test-ErrorSimulationMain -ErrorAction Stop
+
+#>
